@@ -5,6 +5,61 @@
 > 凡是无法从参考实现确证、必须实测确认的字段，统一收敛到文末
 > [§8 待 Phase 1 实测确认](#8-待-phase-1-实测确认known-unknowns)，请勿在实现中凭印象硬编码。
 
+## ⚠️ 实测更正（2026-06-08 真机校准，权威）
+
+> 本节基于一台真实 Magic Trackpad 2 在 Windows 11 上的实测，**覆盖**下文 §2 / §4 / §5
+> 中由 Linux 参考实现**推断**出的协议模型。下文那些章节予以保留（解释当初为何那样推断、
+> 以及 Linux 侧的真实行为），但**与本节冲突处，一律以本节为准**。
+> 校准设备:Magic Trackpad 2(Lightning,PID 0x0265),ground truth 电量 2%。
+
+**核心更正:Windows 上 USB 与蓝牙是同一套机制,不存在「USB feature report」与「BLE GATT」两条独立路径。**
+
+录到的真实报文:
+
+```text
+蓝牙(VID 0x004C, 拔线, 真实 2%):  report 0x90 = 90 00 02
+USB (VID 0x05AC, 插线充电, 真实 3%): report 0x90 = 90 03 03
+                                              ↑b1 ↑b2
+```
+
+统一模型(USB / 蓝牙通用):
+
+| 项 | 实测值 |
+|---|---|
+| 电量承载 | HID **Input report `0x90`**,共 **3 字节**(USB 与蓝牙完全相同) |
+| 取报文方式 | **`HidD_GetInputReport`**(走控制管道发 GET_REPORT(Input))。`HidD_GetFeature` 不通(err=1,无 feature report);中断管道 20s 内不主动推送 |
+| `byte[0]` | report id = `0x90` |
+| `byte[1]` | **充电/电源标志位**(描述符 usage 0x61/0x44/0x46)。拔线蓝牙=`0x00`,USB 充电=`0x03`。**`byte[1] != 0` ⟺ 正在充电/接入外部供电** |
+| `byte[2]` | **电量百分比,直读 0–100**(2↔2%、3↔3% 两点确认),**无需缩放**;`>100` 视为怪值 |
+| 正确 HID 接口 | `mi_00 / col02`(即带 report 0x90 的那个 collection);其余 collection(report 0xC0/0x3F/0xE0/0x9A 等)是触控/其它数据 |
+| 连接判别 | 设备 VID:`0x05AC`=USB、`0x004C`=蓝牙;PID 均 `0x0265`。**插上 USB 时蓝牙的 004C HID 接口会消失**(设备切到 USB) |
+| 描述符 | report 0x90 在**厂商自定义页**(`06 00 FF`)下,**不是**标准 Battery Strength usage(0x06/0x20)。所以 Windows/HidSharp 不会自动把它识别成电量 —— 必须自己按字节解析 |
+
+实测原始描述符(col02,供参考):
+
+```text
+蓝牙 (62B): 0600FF0914A101859005850961150025013500450165005500750195018102094481020946810295058103096525FF463D016513550D750895018102C100
+USB  (57B): 0600FF0914A101859005850961150025013500450165005500750195018102094481020946810295058103096525FF4500750895018102C100
+```
+
+两者仅 usage 0x65 字段的 physical/unit 元数据不同(蓝牙多 `463D01 6513 550D`),电量字节布局一致。
+
+**为什么和 Linux 参考不一样:** Linux 内核 hid-magicmouse 走自己的 descriptor fixup + power_supply
+子系统,在 Linux 上 USB 电量确实表现为 feature report。但 **Windows HID 栈把这条 report 暴露成
+Input report,且 USB / 蓝牙表现一致**。本项目在 Windows 用户态,**按 Windows 的现实实现**;
+Linux 参考仅用于理解字段含义(report id、电量字段位置),不照搬其取报文方式。
+
+**对 Phase 1 的影响(重构待单独 review):**
+
+- `Ble/` 整个 WinRT GATT 子系统(`IBleBatteryGatt` / `WinRtBleGatt` / `BleDeviceLocator`)方向作废。
+- `IUsbHidConnection.GetFeatureReport` → 改为 `HidD_GetInputReport`(HidSharp 不带,需 P/Invoke)。
+- USB / 蓝牙合并为**单一「HID report 0x90」读取器**,连接类型只由设备 VID 区分。
+- `IsCharging` 从 `byte[1]` 读真值,不再按「USB 必充电」假设。
+- `UsbBatteryReportLayout` → reportId=0x90、len=3、电量偏移=2、flags 偏移=1。
+- 设备名本地化(实测为「RZha的妙控板」),**不能靠名字含 "Trackpad"/"Magic" 来识别**,应按 VID/PID。
+
+---
+
 ## 0. 适用设备与命名
 
 | 设备 | 本文档代号 | 备注 |
@@ -53,6 +108,9 @@ BT_VENDOR_ID_APPLE                      0x004C   // 蓝牙栈上报时的 VID（
 ---
 
 ## 2. USB 路径 — HID feature report 布局
+
+> ⚠️ **本节已被[实测更正](#-实测更正2026-06-08-真机校准权威)覆盖**:Windows 上 USB 电量不是 feature report,
+> 而是 Input report `0x90`,用 `HidD_GetInputReport` 读,byte[2]=电量。以下保留 Linux 侧推理供参考。
 
 ### 2.1 电量字段的承载方式
 
@@ -165,6 +223,10 @@ percentage = round( (raw - LogicalMin) * 100 / (LogicalMax - LogicalMin) )
 
 ## 4. BLE 路径 — GATT Battery Service
 
+> ⚠️ **本节对 Magic Trackpad 2 不成立,已被[实测更正](#-实测更正2026-06-08-真机校准权威)覆盖**:该设备走
+> **Bluetooth Classic HID**,电量在 HID Input report `0x90` 的 byte[2],**不暴露 GATT `0x180F` 服务**
+> (实测已配对 BLE 设备数=0)。以下 GATT 内容对该设备不适用,仅作通用 GATT 知识留存。
+
 BLE 走**蓝牙标准 GATT**，与设备厂商无关，**不需要任何 Apple 私有协议**。
 
 | 项 | UUID（16-bit / 完整 128-bit） |
@@ -194,6 +256,10 @@ BLE 走**蓝牙标准 GATT**，与设备厂商无关，**不需要任何 Apple �
 ---
 
 ## 5. USB vs BLE 差异与运行时检测
+
+> ⚠️ **下表的「两条独立路径」模型已被[实测更正](#-实测更正2026-06-08-真机校准权威)覆盖**:实测 USB 与蓝牙
+> 是同一套 HID report 0x90,只差 VID。运行时检测见更正节(VID 0x05AC=USB / 0x004C=蓝牙,按 VID/PID 而非名字)。
+> 以下保留原推断。
 
 | 维度 | USB | BLE |
 |---|---|---|
@@ -276,15 +342,18 @@ DeviceConnection.Disconnected ← 两路都无
 以下项目**参考实现里靠运行时解析获得、未硬编码**，或公开文本无法确证。
 Phase 1 必须实测并**录成 `tests/fixtures/` 数据**，确认前不得在实现中写死：
 
-| # | 待确认项 | 为什么不确定 | 实测方法 |
+| # | 待确认项 | 状态 | 实测结论(2026-06-08) |
 |---|---|---|---|
-| U1 | USB 电量 feature **report ID 数值** | 内核运行时从 descriptor 解析 `hdev->battery.report_id`，不硬编码 | HidSharp 枚举 feature report / dump descriptor，找 Battery Strength usage 所在 report ID |
-| U2 | USB 电量字节**偏移与报文总长度** | descriptor 有缺陷需 fixup，公开文本无字节图 | 对 U1 的 report ID 发 GetFeature，比对不同电量下变化的字节 |
-| U3 | USB 电量字段 **Logical Min/Max**（决定是否 raw==percent） | 公开文本未给 | dump descriptor 读该 usage 的 Logical Min/Max |
-| U4 | descriptor 缺陷在 **Windows/HidSharp** 下是否影响解析 | Windows 不做内核那套 fixup | 实测 HidSharp 解析出的 report 元数据是否正确，决定 §2.3 双轨策略走哪条 |
-| U5 | 睡眠/唤醒/满电时的**具体怪值**（0？陈旧值？255？） | §3.2 仅给方向，无确切值 | 录制各状态报文做 fixture |
-| U6 | BLE 路径设备**识别方式**（按名称？地址段？） | 取决于 Windows 上设备如何呈现 | WinRT 枚举实测 |
-| U7 | MK（键盘）USB 电量字段布局 | 走 `hid-apple` 另一套补丁，Phase 3 才需要 | Phase 3 以 `HID: apple:` 补丁为参考再整理 |
+| U1 | 电量 **report ID 数值** | ✅ 已确认 | **`0x90`**(Input report,非 feature) |
+| U2 | 电量字节**偏移与报文总长度** | ✅ 已确认 | 报文 **3 字节**;`byte[2]`=电量,`byte[1]`=充电标志 |
+| U3 | 电量字段 **是否 raw==percent** | ✅ 已确认 | **是**,`byte[2]` 直读 0–100(2↔2%、3↔3%);`>100` 视为怪值 |
+| U4 | Windows/HidSharp 解析是否可靠 | ✅ 已确认 | 厂商页(`06 00 FF`),Windows 不自动识别为电量;**改用 P/Invoke `HidD_GetInputReport` 按字节解析**(`HidD_GetFeature` 不通) |
+| U5 | 睡眠/唤醒/满电怪值 | ⏳ 部分 | 已知低电(2%)正常;睡眠/满电的怪值仍需在那些状态下补录 |
+| U6 | 设备识别方式 | ✅ 已确认 | **按 VID/PID**(0x05AC=USB、0x004C=蓝牙 + PID 0x0265);**不能靠名字**(实测本地化为「RZha的妙控板」) |
+| U7 | MK(键盘)电量字段布局 | ✅ 旁证 | 实测 MK(004C/029C)同样暴露 `Input id 0x90 len 3`,**与 MT2 同构**;Phase 3 可复用 report 0x90 模型 |
+
+> 录制的真机报文见 `tests/fixtures/report-0x90/`(`90 00 02` 蓝牙 2% / `90 03 03` USB 充电 3%)。
+> 充电状态字段(`byte[1]`)的逐位精确含义、以及睡眠/满电怪值,留待后续在对应状态补录。
 
 ---
 
