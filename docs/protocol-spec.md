@@ -359,14 +359,16 @@ Phase 1 必须实测并**录成 `tests/fixtures/` 数据**，确认前不得在�
 
 ## 9. 对 Phase 1 接口的约束（衔接）
 
-基于本规约，CLAUDE.md 中 `IBatteryReader` 草案的落地约束：
+基于本规约(以顶部「实测更正」为准),`IBatteryReader` 的落地约束:
 
-- `BatteryStatus.Percentage`：经 §3.1 换算并 clamp 到 [0,100] 后的整数。
-- `BatteryStatus.IsCharging`：USB 路径默认 true，BLE 路径默认 false（§5）。
-- `BatteryStatus.Connection`：按 §5.1 检测结果填 `Usb`/`Bluetooth`/`Disconnected`。
-- USB reader 与 BLE reader 各自独立实现 `IBatteryReader`；所有 HID/BLE 原始调用过 mock 友好接口，
-  解析逻辑（字节 → BatteryStatus）必须可脱离真机用 §8 录制的 fixture 单测。
-- 读取层需明确表达「有效新值 / 无新值跳过 / 读取失败」三态（§3.2），不得把后两者降级成 0%。
+- `BatteryStatus.Percentage`：report `0x90` 的 `byte[2]`,直读 0–100,`>100` 视为怪值。
+- `BatteryStatus.IsCharging`：读 `byte[1] != 0`(实测拔线蓝牙=0、USB 充电=非 0);
+  逐位精确含义待补录,先以「非 0 即充电」为准。
+- `BatteryStatus.Connection`：由设备 VID 判定(`0x05AC`=Usb、`0x004C`=Bluetooth);都无=`Disconnected`。
+- **USB 与蓝牙合并为单一 `IBatteryReader`**(`MagicBatteryReader`),连接类型由 IO 源的 VID 决定;
+  取报文经 mock 友好接口 `IHidInputReportSource`(实现走 `HidD_GetInputReport`),
+  解析(字节 → BatteryStatus)为纯函数 `BatteryReport0x90.Parse`,用 `tests/fixtures/report-0x90/` 真机数据单测。
+- 读取层需明确表达「有效新值 / 无新值跳过 / 读取失败」三态(§3.2),不得把后两者降级成 0%。
 
 ---
 

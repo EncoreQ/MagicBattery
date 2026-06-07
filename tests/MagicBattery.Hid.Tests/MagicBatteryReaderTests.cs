@@ -1,35 +1,35 @@
 using System.IO;
 using FluentAssertions;
 using MagicBattery.Hid.Tests.Fakes;
-using MagicBattery.Hid.Usb;
 using Xunit;
 
 namespace MagicBattery.Hid.Tests;
 
-public class UsbBatteryReaderTests
+public class MagicBatteryReaderTests
 {
     private static readonly DateTimeOffset Now =
         new(2026, 6, 8, 0, 0, 0, TimeSpan.Zero);
 
-    private static readonly UsbBatteryReportLayout Mt2 =
-        UsbBatteryReportLayout.MagicTrackpad2Synthetic;
-
-    private static UsbBatteryReader ReaderReturning(string fixture, out FakeUsbHidConnection fake)
+    private static MagicBatteryReader ReaderReturning(string fixture, DeviceConnection conn,
+        out FakeHidInputReportSource fake)
     {
-        fake = FakeUsbHidConnection.Returning(FixtureLoader.LoadBytes("usb", fixture));
-        return new UsbBatteryReader(fake, Mt2, () => Now);
+        fake = FakeHidInputReportSource.Returning(
+            FixtureLoader.LoadBytes("report-0x90", fixture), conn);
+        return new MagicBatteryReader(fake, () => Now);
     }
 
     [Fact]
-    public async Task First_read_returns_Updated_then_same_value_is_Unchanged()
+    public async Task First_read_Updated_then_same_value_Unchanged()
     {
-        using UsbBatteryReader reader = ReaderReturning("mt2_50pct", out _);
+        using MagicBatteryReader reader =
+            ReaderReturning("mt2_bt_2pct", DeviceConnection.Bluetooth, out _);
 
         BatteryReadResult first = await reader.ReadAsync(CancellationToken.None);
         BatteryReadResult second = await reader.ReadAsync(CancellationToken.None);
 
         first.Outcome.Should().Be(BatteryReadOutcome.Updated);
-        first.Status!.Percentage.Should().Be(50);
+        first.Status!.Percentage.Should().Be(2);
+        first.Status.Connection.Should().Be(DeviceConnection.Bluetooth);
         second.Outcome.Should().Be(BatteryReadOutcome.Unchanged);
         second.Status.Should().BeNull();
     }
@@ -37,8 +37,8 @@ public class UsbBatteryReaderTests
     [Fact]
     public async Task Io_failure_returns_Unavailable()
     {
-        var fake = FakeUsbHidConnection.Throwing(new IOException("设备未就绪"));
-        using var reader = new UsbBatteryReader(fake, Mt2, () => Now);
+        var fake = FakeHidInputReportSource.Throwing(new IOException("设备未就绪"));
+        using var reader = new MagicBatteryReader(fake, () => Now);
 
         BatteryReadResult result = await reader.ReadAsync(CancellationToken.None);
 
@@ -48,7 +48,8 @@ public class UsbBatteryReaderTests
     [Fact]
     public async Task Garbage_report_returns_Unavailable()
     {
-        using UsbBatteryReader reader = ReaderReturning("mt2_oob", out _);
+        using MagicBatteryReader reader =
+            ReaderReturning("mt2_garbage_oob", DeviceConnection.Bluetooth, out _);
 
         BatteryReadResult result = await reader.ReadAsync(CancellationToken.None);
 
@@ -58,19 +59,22 @@ public class UsbBatteryReaderTests
     [Fact]
     public async Task Updated_pushes_one_value_to_Changes()
     {
-        using UsbBatteryReader reader = ReaderReturning("mt2_50pct", out _);
+        using MagicBatteryReader reader =
+            ReaderReturning("mt2_usb_charging_3pct", DeviceConnection.Usb, out _);
         var collector = new CollectingObserver<BatteryStatus>();
         using IDisposable sub = reader.Changes.Subscribe(collector);
 
         await reader.ReadAsync(CancellationToken.None);
 
-        collector.Values.Should().ContainSingle().Which.Percentage.Should().Be(50);
+        collector.Values.Should().ContainSingle()
+            .Which.IsCharging.Should().BeTrue();
     }
 
     [Fact]
-    public void Dispose_disposes_underlying_connection()
+    public void Dispose_disposes_underlying_source()
     {
-        UsbBatteryReader reader = ReaderReturning("mt2_50pct", out FakeUsbHidConnection fake);
+        MagicBatteryReader reader =
+            ReaderReturning("mt2_bt_2pct", DeviceConnection.Bluetooth, out FakeHidInputReportSource fake);
 
         reader.Dispose();
 

@@ -1,19 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- BLE 走 WinRT 投影,故 TFM 锚定 Windows;目标平台本就是 Windows 11/10 21H2+ -->
-    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <!-- 仅 P/Invoke(kernel32 / hid.dll)+ HidSharp,无 WinRT,故普通 net8.0 即可。
+         运行期仍是 Windows-only 工具。 -->
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
-    <!-- 纯类库,无 UI 依赖 -->
-    <UseWPF>false</UseWPF>
-    <UseWindowsForms>false</UseWindowsForms>
-    <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- 选型表:跨连接方式抽象优先的 HID 访问库 -->
+    <!-- 选型表:HID 设备枚举 / report descriptor 解析(实际取报文用 HidD_GetInputReport) -->
     <PackageReference Include="HidSharp" Version="2.1.0" />
   </ItemGroup>
 

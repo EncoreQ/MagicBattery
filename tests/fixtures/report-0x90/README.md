@@ -10,6 +10,7 @@ HID Input report `0x90`(3 字节),Magic Trackpad 2 实测。这是 **USB 与蓝�
 |---|---|---|---|
 | `mt2_bt_2pct.hex` | `90 00 02` | 蓝牙(VID 0x004C)、拔线、byte[1]=0x00(未充电)、byte[2]=2 | 真机:Magic Trackpad 2 (PID 0x0265),2026-06-08,ground truth 2% |
 | `mt2_usb_charging_3pct.hex` | `90 03 03` | USB(VID 0x05AC)、充电、byte[1]=0x03(充电中)、byte[2]=3 | 真机:同一台,USB 插线充电,2026-06-08,ground truth 3% |
+| `mt2_garbage_oob.hex` | `90 00 C8` | byte[2]=200 > 100,越界怪值,应判为 Unavailable | SYNTHETIC(构造的边界用例) |
 
 ## 待补录(后续在对应状态下采集)
 
