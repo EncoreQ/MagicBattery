@@ -54,12 +54,13 @@ report descriptor 原始字节。
 
 ### 1.2 录真实 feature report 字节(各电量点)
 
-对 1.1 找到的 Report ID 发一次 HID Get Feature,把返回字节抄成 hex。两种方式任选:
+对 1.1 找到的 Report ID 发一次 HID Get Feature,把返回字节抄成 hex。
 
-- **方式 A(推荐,可复用本仓库):** 用一个 dump 小工具调
-  `UsbHidDeviceEnumerator.TryOpenFirst()` + `IUsbHidConnection.GetFeatureReport(reportId, length)`,
-  打印 hex。(这个工具尚未建,见本文末「可选工具」。)
-- **方式 B:** 任意 HID 工具(如 `hidapitester --get-feature-report`)对该 report id 取 feature。
+- **当前方式:** 用任意 HID 工具(如 `hidapitester --get-feature-report <id>`)对该 report id
+  取 feature,复制返回字节。
+- 若日后觉得手工太烦,可再建仓库内的 dump 小工具复用
+  `UsbHidDeviceEnumerator.TryOpenFirst()` + `IUsbHidConnection.GetFeatureReport(reportId, length)`
+  自动打印 hex(见本文末「可选工具」,目前**暂不建**)。
 
 每个电量点记录一行:`<hex 字节>  | 真实% = NN  | 状态`。
 
@@ -134,11 +135,12 @@ BLE 走标准 GATT,值直接 0–100,基本不需要"校准",但要确认 Apple 
 
 ---
 
-## 可选工具:dump 小程序
+## 可选工具:dump 小程序(目前暂不建)
 
-第 1.2 步要反复对设备发 Get Feature 并打印 hex,手工不便。可建一个**仅供开发**的
-控制台小工具 `tools/MagicBattery.Dump`(只依赖已有的 HidSharp + MagicBattery.Hid,
-**不引入新依赖**),功能:枚举匹配 (VID,PID) 的设备 → 打印 `GetRawReportDescriptor()`
-重建的描述符 → 对候选 report id 发 GetFeature → 输出可直接粘进 `.hex` 的字节。
+**决定:暂不建**,用上面的外部工具(`hidapitester` / Bluetooth LE Explorer)完成录制即可。
 
-是否建这个工具单独决定(它不在既定 Phase 列表内,属校准辅助)。没有它也能用方式 B 完成录制。
+留作日后备选:若手工录制反复且烦,可建一个**仅供开发**的控制台小工具
+`tools/MagicBattery.Dump`(只依赖已有的 HidSharp + MagicBattery.Hid,**不引入新依赖**),
+枚举匹配 (VID,PID) 的设备 → 打印 `GetRawReportDescriptor()` 重建的描述符 →
+对候选 report id 发 GetFeature → 输出可直接粘进 `.hex` 的字节。它不在既定 Phase 列表内,
+真要建时再单独拍板。
