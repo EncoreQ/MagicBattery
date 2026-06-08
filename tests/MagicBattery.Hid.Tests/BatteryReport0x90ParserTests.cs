@@ -37,6 +37,20 @@ public class BatteryReport0x90ParserTests
     }
 
     [Fact]
+    public void Parse_real_bluetooth_full_charging_fixture_100pct()
+    {
+        // 真机录制:充电中经蓝牙接口读到满电 → 90 03 64
+        // 关键点:byte[2]=0x64=100 高值直读;byte[1]=0x03 充电标志即便走蓝牙也成立
+        byte[] report = FixtureLoader.LoadBytes("report-0x90", "mt2_bt_full_charging_100pct");
+
+        BatteryStatus? status = BatteryReport0x90.Parse(report, DeviceConnection.Bluetooth, Now);
+
+        status!.Percentage.Should().Be(100);
+        status.IsCharging.Should().BeTrue();        // byte[1]=0x03,与蓝牙连接并存
+        status.Connection.Should().Be(DeviceConnection.Bluetooth);
+    }
+
+    [Fact]
     public void Parse_out_of_range_battery_returns_null()
     {
         // 90 00 C8:byte[2]=200 > 100,怪值
