@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>MagicBattery</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 选型表内、已批准的托盘库。pin 2.3.2:这是最后一个原生带 net8.0-windows7.0 资产的稳定版,
+         2.4.x 起只剩 net10.0-windows + .NET Framework,在 net8 上会 NU1701 回退。 -->
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.3.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MagicBattery.Hid\MagicBattery.Hid.csproj" />
+  </ItemGroup>
+
+</Project>
