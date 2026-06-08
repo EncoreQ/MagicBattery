@@ -51,6 +51,20 @@ public class BatteryReport0x90ParserTests
     }
 
     [Fact]
+    public void Parse_real_bluetooth_full_unplugged_fixture_100pct_not_charging()
+    {
+        // 真机录制:从满电拔线后读到 → 90 00 64
+        // 与 90 03 64 仅差 byte[1]:拔线后 0x03→0x00,坐实 byte[1] 即充电标志
+        byte[] report = FixtureLoader.LoadBytes("report-0x90", "mt2_bt_full_unplugged_100pct");
+
+        BatteryStatus? status = BatteryReport0x90.Parse(report, DeviceConnection.Bluetooth, Now);
+
+        status!.Percentage.Should().Be(100);
+        status.IsCharging.Should().BeFalse();       // byte[1]=0x00,拔线
+        status.Connection.Should().Be(DeviceConnection.Bluetooth);
+    }
+
+    [Fact]
     public void Parse_out_of_range_battery_returns_null()
     {
         // 90 00 C8:byte[2]=200 > 100,怪值
