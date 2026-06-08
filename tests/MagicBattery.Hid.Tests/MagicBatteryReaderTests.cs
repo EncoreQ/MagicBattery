@@ -35,6 +35,25 @@ public class MagicBatteryReaderTests
     }
 
     [Fact]
+    public async Task Charging_flip_at_same_percentage_is_Updated()
+    {
+        // 满电下拔电:电量不变(100),仅充电标志 0x03→0x00,应判为 Updated 以便托盘刷新充电指示
+        var fake = FakeHidInputReportSource.ReturningSequence(DeviceConnection.Bluetooth,
+            new byte[] { 0x90, 0x03, 0x64 },   // 充电中
+            new byte[] { 0x90, 0x00, 0x64 });  // 拔电
+        using var reader = new MagicBatteryReader(fake, () => Now);
+
+        BatteryReadResult first = await reader.ReadAsync(CancellationToken.None);
+        BatteryReadResult second = await reader.ReadAsync(CancellationToken.None);
+
+        first.Outcome.Should().Be(BatteryReadOutcome.Updated);
+        first.Status!.IsCharging.Should().BeTrue();
+        second.Outcome.Should().Be(BatteryReadOutcome.Updated);
+        second.Status!.Percentage.Should().Be(100);
+        second.Status.IsCharging.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Io_failure_returns_Unavailable()
     {
         var fake = FakeHidInputReportSource.Throwing(new IOException("设备未就绪"));

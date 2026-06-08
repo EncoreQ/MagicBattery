@@ -8,9 +8,12 @@ namespace MagicBattery.Hid;
 /// 区别仅在源的 <see cref="IHidInputReportSource.Connection"/>。
 ///
 /// 三态(docs/protocol-spec.md §3.2 / §9):
-///   - IO 抛异常 / 解析返回 null → Unavailable
-///   - 电量与上次相同            → Unchanged
-///   - 否则                      → Updated,并向 Changes 推送
+///   - IO 抛异常 / 解析返回 null      → Unavailable
+///   - 电量与充电标志都与上次相同     → Unchanged
+///   - 否则                           → Updated,并向 Changes 推送
+///
+/// 去重键取 (电量, 充电) 二元组而非仅电量:满电时拔/插电会在电量不变下翻转充电标志,
+/// 若只比电量,托盘的充电指示就无法及时反映(实测 90 03 64 ↔ 90 00 64)。
 /// </summary>
 public sealed class MagicBatteryReader : IBatteryReader
 {
@@ -18,7 +21,7 @@ public sealed class MagicBatteryReader : IBatteryReader
     private readonly Func<DateTimeOffset> _clock;
     private readonly SimpleSubject<BatteryStatus> _changes = new();
 
-    private int? _lastPercentage;
+    private (int Percentage, bool IsCharging)? _last;
 
     public MagicBatteryReader(IHidInputReportSource source, Func<DateTimeOffset>? clock = null)
     {
@@ -50,12 +53,13 @@ public sealed class MagicBatteryReader : IBatteryReader
             return Task.FromResult(BatteryReadResult.Unavailable);
         }
 
-        if (_lastPercentage == status.Percentage)
+        var signature = (status.Percentage, status.IsCharging);
+        if (_last == signature)
         {
             return Task.FromResult(BatteryReadResult.Unchanged);
         }
 
-        _lastPercentage = status.Percentage;
+        _last = signature;
         _changes.OnNext(status);
         return Task.FromResult(BatteryReadResult.Updated(status));
     }
