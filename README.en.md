@@ -29,7 +29,8 @@ All phases are complete. Every battery protocol is validated against real hardwa
 - **Two display modes**: Magic devices report an exact percentage (icon shows the number, color in 5 tiers); the controller only exposes 5 coarse levels (Full / High / Medium / Low / Critical), so its icon shows battery cells and the menu shows the level name — **no fabricated fake percentage**.
 - A charging bolt is overlaid on the icon while charging. The hover tooltip lists each device's battery + connection + last-update time.
 - **Low-battery alerts**: precise devices at 20% / 10% / 5%, coarse devices on entering "Low / Critical" — Toast notification (can be turned off in the menu), fires only while discharging and re-arms after recovery / charging.
-- Right-click menu: Refresh now / Low-battery alerts toggle / Run at startup / Exit.
+- **UI language**: Chinese / English, follows the system language by default (falls back to Chinese if neither), switchable live from the "Language" menu.
+- Right-click menu: Refresh now / Low-battery alerts toggle / Run at startup / Language / Exit.
 - Polls every 15 minutes by default; listens for device hot-plug (`WM_DEVICECHANGE`) so device add/remove and connection changes take effect within seconds.
 - Run-at-startup uses the HKCU `Run` key (**no admin required**); other settings live in `%APPDATA%\MagicBattery\config.json`.
 

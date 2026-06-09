@@ -15,5 +15,8 @@ public sealed record AppConfig
     /// <summary>告警阈值(百分比)。默认 20 / 10 / 5。</summary>
     public IReadOnlyList<int> AlertThresholds { get; init; } = new[] { 20, 10, 5 };
 
+    /// <summary>界面语言设置。默认跟随系统。</summary>
+    public LanguagePreference Language { get; init; } = LanguagePreference.System;
+
     public static AppConfig Default => new();
 }

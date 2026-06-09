@@ -29,6 +29,16 @@ public class ConfigServiceTests : IDisposable
         config.PollIntervalMinutes.Should().Be(15);
         config.LowBatteryAlertsEnabled.Should().BeTrue();
         config.AlertThresholds.Should().Equal(20, 10, 5);
+        config.Language.Should().Be(LanguagePreference.System); // 默认跟随系统
+    }
+
+    [Fact]
+    public void Language_roundtrips_as_readable_string()
+    {
+        new ConfigService(_path).Save(AppConfig.Default with { Language = LanguagePreference.English });
+
+        File.ReadAllText(_path).Should().Contain("\"English\"");           // 存为可读字符串而非数字
+        new ConfigService(_path).Load().Language.Should().Be(LanguagePreference.English);
     }
 
     [Fact]

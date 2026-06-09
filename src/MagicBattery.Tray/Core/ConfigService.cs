@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace MagicBattery.Tray.Core;
 
@@ -13,6 +14,8 @@ public sealed class ConfigService
     private static readonly JsonSerializerOptions Options = new()
     {
         WriteIndented = true,
+        // 枚举存可读字符串(如 Language: "English"),而非数字
+        Converters = { new JsonStringEnumConverter() },
     };
 
     private readonly string _path;

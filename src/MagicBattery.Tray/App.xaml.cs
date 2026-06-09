@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -24,6 +25,7 @@ public partial class App : Application
     private AutostartService? _autostart;
     private ConfigService? _configService;
     private AppConfig _config = AppConfig.Default;
+    private Localizer _localizer = Localizer.Chinese;
     private LowBatteryAlerter? _alerter;
     private INotifier? _notifier;
 
@@ -48,6 +50,7 @@ public partial class App : Application
 
         _configService = new ConfigService();
         _config = _configService.Load();
+        _localizer = Localizer.For(LanguageResolver.Resolve(_config.Language, CultureInfo.CurrentUICulture));
 
         _autostart = new AutostartService(new RegistryAutostartStore());
         _alerter = new LowBatteryAlerter(_config.AlertThresholds, () => _config.LowBatteryAlertsEnabled);
@@ -60,7 +63,7 @@ public partial class App : Application
 
         _tray = new TaskbarIcon
         {
-            ToolTipText = "Magic 设备",
+            ToolTipText = _localizer.DefaultTooltip,
             ContextMenu = BuildContextMenu(),
         };
         _tray.ForceCreate();
@@ -79,7 +82,7 @@ public partial class App : Application
 
         _alertsItem = new MenuItem
         {
-            Header = "低电量告警",
+            Header = _localizer.MenuAlerts,
             IsCheckable = true,
             IsChecked = _config.LowBatteryAlertsEnabled,
         };
@@ -89,12 +92,14 @@ public partial class App : Application
             _configService?.Save(_config);
         };
 
-        var refreshItem = new MenuItem { Header = "立即刷新" };
+        var refreshItem = new MenuItem { Header = _localizer.MenuRefresh };
         refreshItem.Click += (_, _) => _coordinator?.RequestRefresh();
+
+        MenuItem languageItem = BuildLanguageMenu();
 
         _autostartItem = new MenuItem
         {
-            Header = "开机自启",
+            Header = _localizer.MenuAutostart,
             IsCheckable = true,
             IsChecked = _autostart?.IsEnabled ?? false,
         };
@@ -111,7 +116,7 @@ public partial class App : Application
             }
         };
 
-        var exitItem = new MenuItem { Header = "退出" };
+        var exitItem = new MenuItem { Header = _localizer.MenuExit };
         exitItem.Click += (_, _) => Shutdown();
 
         _menu = new ContextMenu();
@@ -120,9 +125,52 @@ public partial class App : Application
         _menu.Items.Add(_alertsItem);
         _menu.Items.Add(refreshItem);
         _menu.Items.Add(_autostartItem);
+        _menu.Items.Add(languageItem);
         _menu.Items.Add(new Separator());
         _menu.Items.Add(exitItem);
         return _menu;
+    }
+
+    // 语言子菜单:跟随系统 / 中文 / English(勾当前设置)。语言名用本族文字恒定显示。
+    private MenuItem BuildLanguageMenu()
+    {
+        var parent = new MenuItem { Header = _localizer.MenuLanguage };
+
+        (LanguagePreference Pref, string Label)[] options =
+        {
+            (LanguagePreference.System, _localizer.MenuFollowSystem),
+            (LanguagePreference.Chinese, "中文"),
+            (LanguagePreference.English, "English"),
+        };
+
+        foreach ((LanguagePreference pref, string label) in options)
+        {
+            var item = new MenuItem
+            {
+                Header = label,
+                IsCheckable = true,
+                IsChecked = _config.Language == pref,
+            };
+            LanguagePreference captured = pref;
+            item.Click += (_, _) => SetLanguage(captured);
+            parent.Items.Add(item);
+        }
+
+        return parent;
+    }
+
+    // 切换语言:存盘 → 重解析 Localizer → 重建菜单 + 刷新 tooltip/图标/设备行(即时生效)
+    private void SetLanguage(LanguagePreference preference)
+    {
+        _config = _config with { Language = preference };
+        _configService?.Save(_config);
+        _localizer = Localizer.For(LanguageResolver.Resolve(preference, CultureInfo.CurrentUICulture));
+
+        if (_tray is not null)
+        {
+            _tray.ContextMenu = BuildContextMenu();
+            ApplySnapshot(_coordinator?.Devices ?? Array.Empty<DeviceBattery>());
+        }
     }
 
     private void OnSnapshot(IReadOnlyList<DeviceBattery> devices) =>
@@ -142,7 +190,7 @@ public partial class App : Application
         _currentIcon?.Dispose();
         _currentIcon = icon;
 
-        _tray.ToolTipText = TooltipFormatter.Tooltip(devices);
+        _tray.ToolTipText = _localizer.Tooltip(devices);
         RebuildDeviceRows(devices);
         RunAlerts(devices);
     }
@@ -163,14 +211,14 @@ public partial class App : Application
 
         if (devices.Count == 0)
         {
-            _menu.Items.Insert(0, new MenuItem { Header = "未检测到设备", IsEnabled = false });
+            _menu.Items.Insert(0, new MenuItem { Header = _localizer.MenuNoDevice, IsEnabled = false });
             return;
         }
 
         int at = 0;
         foreach (DeviceBattery d in devices)
         {
-            _menu.Items.Insert(at++, new MenuItem { Header = TooltipFormatter.Device(d), IsEnabled = false });
+            _menu.Items.Insert(at++, new MenuItem { Header = _localizer.Device(d), IsEnabled = false });
         }
     }
 
@@ -191,9 +239,8 @@ public partial class App : Application
             AlertDecision? decision = _alerter.Evaluate(d.DeviceKey, d.Kind, d.Level, d.Percentage, d.IsCharging);
             if (decision is not null)
             {
-                string name = DeviceKindNames.Of(decision.Kind);
-                string amount = decision.Percentage is int p ? $"{p}%" : $"{BatteryLevelNames.Of(decision.Level)}档";
-                _notifier.Notify("电量不足", $"{name}电量 {amount},请及时充电");
+                _notifier.Notify(_localizer.AlertTitle,
+                    _localizer.AlertBody(decision.Kind, decision.Level, decision.Percentage));
             }
         }
     }
