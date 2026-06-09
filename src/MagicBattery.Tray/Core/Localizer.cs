@@ -76,7 +76,11 @@ public sealed class Localizer
         return $"{name} {amount} · {ChargeText(d.IsCharging)} · {ConnectionText(d.Connection)}";
     }
 
-    /// <summary>托盘 hover:每在线设备一行 + 末行更新时间;无在线设备时占位。</summary>
+    /// <summary>
+    /// 托盘 hover:每在线设备一行(精简「名称 电量」)+ 末行更新时间;无在线设备时占位。
+    /// 注意:Windows 托盘 tooltip 上限 128 字符(Shell szTip),故此处只放速览信息;
+    /// 充电状态 / 连接方式等完整信息在右键菜单(<see cref="Device"/>)。
+    /// </summary>
     public string Tooltip(IReadOnlyList<DeviceBattery> devices)
     {
         List<DeviceBattery> live = devices
@@ -88,10 +92,16 @@ public sealed class Localizer
             return En ? "MagicBattery · no device" : "Magic 设备 · 未连接";
         }
 
-        string lines = string.Join("\n", live.Select(Device));
+        string lines = string.Join("\n", live.Select(TooltipLine));
         DateTimeOffset last = live.Max(d => d.LastUpdate);
         string updated = En ? $"Updated {last:HH:mm}" : $"更新于 {last:HH:mm}";
         return $"{lines}\n{updated}";
+    }
+
+    private string TooltipLine(DeviceBattery d)
+    {
+        string amount = d.Percentage is int pct ? $"{pct}%" : LevelName(d.Level);
+        return $"{DeviceName(d.Kind)} {amount}";
     }
 
     /// <summary>低电量告警正文。</summary>

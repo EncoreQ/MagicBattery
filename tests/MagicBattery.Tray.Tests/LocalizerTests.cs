@@ -72,16 +72,31 @@ public class LocalizerTests
     }
 
     [Fact]
-    public void Tooltip_lists_devices_and_time()
+    public void Tooltip_lists_devices_compactly_with_time()
     {
+        // tooltip 受 Shell 128 字符上限,只放精简「名称 电量」(完整信息在菜单)
         var devices = new[]
         {
             Magic(DeviceKind.Trackpad, 87, false, DeviceConnection.Bluetooth),
             Pad(BatteryLevel.High, false),
         };
 
-        Zh.Tooltip(devices).Should().Be("触控板 87% · 未充电 · 蓝牙\n手柄 高 · 未充电 · 蓝牙\n更新于 14:32");
-        En.Tooltip(devices).Should().Be("Trackpad 87% · on battery · Bluetooth\nGamepad High · on battery · Bluetooth\nUpdated 14:32");
+        Zh.Tooltip(devices).Should().Be("触控板 87%\n手柄 高\n更新于 14:32");
+        En.Tooltip(devices).Should().Be("Trackpad 87%\nGamepad High\nUpdated 14:32");
+    }
+
+    [Fact]
+    public void Tooltip_stays_well_under_shell_limit_with_four_devices()
+    {
+        var devices = new[]
+        {
+            Magic(DeviceKind.Trackpad, 100, true, DeviceConnection.Bluetooth),
+            Magic(DeviceKind.Keyboard, 100, true, DeviceConnection.Bluetooth),
+            Magic(DeviceKind.Mouse, 100, true, DeviceConnection.Bluetooth),
+            Pad(BatteryLevel.Critical, true),
+        };
+
+        En.Tooltip(devices).Length.Should().BeLessThan(120); // Shell szTip 上限 128
     }
 
     [Fact]
