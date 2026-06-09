@@ -104,7 +104,7 @@ public sealed class BatteryCoordinator : IDisposable
         return result.Outcome switch
         {
             BatteryReadOutcome.Updated when result.Status is { } s =>
-                new DeviceBattery(reader.DeviceKey, reader.Kind, s.Percentage, s.IsCharging,
+                new DeviceBattery(reader.DeviceKey, reader.Kind, s.Level, s.Percentage, s.IsCharging,
                     s.Connection, now, BatteryAvailability.Live),
 
             // 新 reader 每轮重建,理论上不会回 Unchanged;稳妥起见保留上次值仍标在线
@@ -114,7 +114,7 @@ public sealed class BatteryCoordinator : IDisposable
             // Unavailable / 异常:保留上次已知电量(若有),标记离线
             _ => prev is not null
                 ? prev with { Availability = BatteryAvailability.Disconnected }
-                : new DeviceBattery(reader.DeviceKey, reader.Kind, null, false,
+                : new DeviceBattery(reader.DeviceKey, reader.Kind, BatteryLevel.Critical, null, false,
                     reader.Connection, now, BatteryAvailability.Disconnected),
         };
     }

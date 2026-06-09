@@ -183,16 +183,17 @@ public partial class App : Application
 
         foreach (DeviceBattery d in devices)
         {
-            if (d.Availability != BatteryAvailability.Live || d.Percentage is null)
+            if (d.Availability != BatteryAvailability.Live)
             {
                 continue;
             }
 
-            AlertDecision? decision = _alerter.Evaluate(d.DeviceKey, d.Kind, d.Percentage.Value, d.IsCharging);
+            AlertDecision? decision = _alerter.Evaluate(d.DeviceKey, d.Kind, d.Level, d.Percentage, d.IsCharging);
             if (decision is not null)
             {
                 string name = DeviceKindNames.Of(decision.Kind);
-                _notifier.Notify("电量不足", $"{name}电量 {decision.Percentage}%,请及时充电");
+                string amount = decision.Percentage is int p ? $"{p}%" : $"{BatteryLevelNames.Of(decision.Level)}档";
+                _notifier.Notify("电量不足", $"{name}电量 {amount},请及时充电");
             }
         }
     }

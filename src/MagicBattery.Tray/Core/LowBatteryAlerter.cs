@@ -2,67 +2,111 @@ using MagicBattery.Hid;
 
 namespace MagicBattery.Tray.Core;
 
-/// <summary>一次低电量告警的判定结果。</summary>
-public sealed record AlertDecision(string DeviceKey, DeviceKind Kind, int Threshold, int Percentage);
+/// <summary>一次低电量告警的判定结果。<see cref="Percentage"/> 仅精确设备有,粗档设备为 null。</summary>
+public sealed record AlertDecision(string DeviceKey, DeviceKind Kind, BatteryLevel Level, int? Percentage);
 
 /// <summary>
-/// 低电量告警状态机(纯逻辑,可单测)。按设备独立维护已触发的阈值集合。
-///
-/// 规则(CLAUDE.md:20/10/5 三档,可关):
-///   - 未充电且电量跌到某阈值、且该阈值对该设备尚未触发 → 触发;一次跌穿多档只弹**最严重**那档。
-///   - 充电中不弹,并清空该设备已触发集(视为回升,重新武装)。
-///   - 未充电的缓慢回升:电量高于某阈值即把该阈值重新武装。
-///   - 关闭告警时不弹,但回升/充电的「重新武装」照常,避免重新开启后补弹历史。
+/// 低电量告警状态机(纯逻辑,可单测)。按设备独立维护已触发集。两类设备:
+///   - **精确设备(Magic)**:按百分比阈值(默认 20/10/5),不回归 Phase 3 行为。
+///   - **粗档设备(手柄)**:按档位,进入 <see cref="BatteryLevel.Low"/> 弹一次、进入
+///     <see cref="BatteryLevel.Critical"/> 弹一次。
+/// 共同规则:未充电才弹;一次跌穿多档只弹最严重;充电/回升重新武装;关闭时不弹但武装照常。
 /// </summary>
 public sealed class LowBatteryAlerter
 {
-    private readonly IReadOnlyList<int> _thresholds; // 降序
+    private static readonly BatteryLevel[] CoarseThresholds = { BatteryLevel.Low, BatteryLevel.Critical };
+
+    private readonly IReadOnlyList<int> _percentThresholds; // 降序
     private readonly Func<bool> _enabled;
-    private readonly Dictionary<string, HashSet<int>> _fired = new();
+    private readonly Dictionary<string, DeviceState> _devices = new();
 
     public LowBatteryAlerter(IEnumerable<int> thresholds, Func<bool> enabled)
     {
-        _thresholds = thresholds.Distinct().OrderByDescending(t => t).ToArray();
+        _percentThresholds = thresholds.Distinct().OrderByDescending(t => t).ToArray();
         _enabled = enabled ?? throw new ArgumentNullException(nameof(enabled));
     }
 
-    /// <summary>喂入一台设备的一次读数,返回需要弹出的告警(无则 null)。</summary>
-    public AlertDecision? Evaluate(string deviceKey, DeviceKind kind, int percentage, bool isCharging)
+    /// <summary>喂入一台设备的一次读数(精确设备传 percentage,粗档设备传 null),返回需弹的告警或 null。</summary>
+    public AlertDecision? Evaluate(string deviceKey, DeviceKind kind, BatteryLevel level, int? percentage, bool isCharging)
     {
-        if (!_fired.TryGetValue(deviceKey, out HashSet<int>? fired))
-        {
-            fired = new HashSet<int>();
-            _fired[deviceKey] = fired;
-        }
+        DeviceState st = GetOrAdd(deviceKey);
 
-        // 充电中:不弹并重新武装(在回升)
         if (isCharging)
         {
-            fired.Clear();
+            st.Clear(); // 充电中不弹并重新武装
             return null;
         }
 
-        // 电量回升过某阈值 → 重新武装(未充电的缓慢回升)
-        fired.RemoveWhere(t => percentage > t);
+        return percentage is int pct
+            ? EvaluatePercent(deviceKey, kind, level, pct, st)
+            : EvaluateCoarse(deviceKey, kind, level, st);
+    }
 
+    private AlertDecision? EvaluatePercent(string key, DeviceKind kind, BatteryLevel level, int pct, DeviceState st)
+    {
+        st.FiredPercent.RemoveWhere(t => pct > t); // 回升过阈值 → 重新武装
         if (!_enabled())
         {
             return null;
         }
 
-        // 本次新跌穿的阈值:<=阈值 且尚未触发
-        List<int> newlyCrossed = _thresholds.Where(t => percentage <= t && !fired.Contains(t)).ToList();
-        if (newlyCrossed.Count == 0)
+        List<int> crossed = _percentThresholds.Where(t => pct <= t && !st.FiredPercent.Contains(t)).ToList();
+        if (crossed.Count == 0)
         {
             return null;
         }
 
-        foreach (int t in newlyCrossed)
+        foreach (int t in crossed)
         {
-            fired.Add(t); // 一次跌穿多档全部记为已触发
+            st.FiredPercent.Add(t);
         }
 
-        int worst = newlyCrossed.Min(); // 只弹最严重那档
-        return new AlertDecision(deviceKey, kind, worst, percentage);
+        return new AlertDecision(key, kind, level, pct); // 文案用当前 %
+    }
+
+    private AlertDecision? EvaluateCoarse(string key, DeviceKind kind, BatteryLevel level, DeviceState st)
+    {
+        st.FiredLevel.RemoveWhere(l => level > l); // 回升过某告警档 → 重新武装
+        if (!_enabled())
+        {
+            return null;
+        }
+
+        List<BatteryLevel> crossed = CoarseThresholds.Where(l => level <= l && !st.FiredLevel.Contains(l)).ToList();
+        if (crossed.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (BatteryLevel l in crossed)
+        {
+            st.FiredLevel.Add(l);
+        }
+
+        BatteryLevel worst = crossed.Min(); // 序号最小 = 最严重
+        return new AlertDecision(key, kind, worst, null);
+    }
+
+    private DeviceState GetOrAdd(string key)
+    {
+        if (!_devices.TryGetValue(key, out DeviceState? st))
+        {
+            st = new DeviceState();
+            _devices[key] = st;
+        }
+
+        return st;
+    }
+
+    private sealed class DeviceState
+    {
+        public readonly HashSet<int> FiredPercent = new();
+        public readonly HashSet<BatteryLevel> FiredLevel = new();
+
+        public void Clear()
+        {
+            FiredPercent.Clear();
+            FiredLevel.Clear();
+        }
     }
 }

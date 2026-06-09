@@ -14,7 +14,12 @@ public class BatteryCoordinatorTests
         new(openAll, TimeSpan.FromMinutes(15), () => _now);
 
     private static BatteryReadResult Updated(int pct, bool charging, DeviceConnection conn) =>
-        BatteryReadResult.Updated(new BatteryStatus(pct, charging, conn, default));
+        BatteryReadResult.Updated(
+            new BatteryStatus(BatteryLevels.FromPercentage(pct), pct, charging, conn, default));
+
+    private static BatteryReadResult UpdatedCoarse(BatteryLevel level, bool charging) =>
+        BatteryReadResult.Updated(
+            new BatteryStatus(level, Percentage: null, charging, DeviceConnection.Bluetooth, default));
 
     private static FakeBatteryReader Reader(DeviceKind kind, string key, DeviceConnection conn,
         params object[] script) =>
@@ -34,6 +39,23 @@ public class BatteryCoordinatorTests
         coord.Devices.Should().HaveCount(2);
         coord.Devices.Should().Contain(d => d.Kind == DeviceKind.Trackpad && d.Percentage == 87);
         coord.Devices.Should().Contain(d => d.Kind == DeviceKind.Keyboard && d.Percentage == 8);
+    }
+
+    [Fact]
+    public async Task Mixed_precise_and_coarse_devices_coexist()
+    {
+        var trackpad = Reader(DeviceKind.Trackpad, "tp", DeviceConnection.Bluetooth,
+            Updated(87, false, DeviceConnection.Bluetooth));
+        var gamepad = Reader(DeviceKind.Gamepad, "pad", DeviceConnection.Bluetooth,
+            UpdatedCoarse(BatteryLevel.High, charging: false));
+        using BatteryCoordinator coord = Coordinator(() => new IBatteryReader[] { trackpad, gamepad });
+
+        await coord.PollOnceAsync(CancellationToken.None);
+
+        coord.Devices.Should().Contain(d => d.Kind == DeviceKind.Trackpad && d.Percentage == 87);
+        DeviceBattery pad = coord.Devices.Single(d => d.Kind == DeviceKind.Gamepad);
+        pad.Percentage.Should().BeNull();
+        pad.Level.Should().Be(BatteryLevel.High);
     }
 
     [Fact]

@@ -19,6 +19,7 @@ public enum BatteryAvailability
 public sealed record DeviceBattery(
     string DeviceKey,
     DeviceKind Kind,
+    BatteryLevel Level,
     int? Percentage,
     bool IsCharging,
     DeviceConnection Connection,
@@ -29,6 +30,7 @@ public sealed record DeviceBattery(
     public static readonly DeviceBattery None = new(
         DeviceKey: "",
         Kind: DeviceKind.Unknown,
+        Level: BatteryLevel.Critical,
         Percentage: null,
         IsCharging: false,
         Connection: DeviceConnection.Disconnected,

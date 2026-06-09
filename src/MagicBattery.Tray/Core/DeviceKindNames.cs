@@ -10,6 +10,7 @@ public static class DeviceKindNames
         DeviceKind.Trackpad => "触控板",
         DeviceKind.Keyboard => "键盘",
         DeviceKind.Mouse => "鼠标",
+        DeviceKind.Gamepad => "手柄",
         _ => "设备",
     };
 }

@@ -10,6 +10,7 @@ public class DeviceKindNamesTests
     [InlineData(DeviceKind.Trackpad, "触控板")]
     [InlineData(DeviceKind.Keyboard, "键盘")]
     [InlineData(DeviceKind.Mouse, "鼠标")]
+    [InlineData(DeviceKind.Gamepad, "手柄")]
     [InlineData(DeviceKind.Unknown, "设备")]
     public void Of_maps_kind_to_chinese_name(DeviceKind kind, string expected)
     {

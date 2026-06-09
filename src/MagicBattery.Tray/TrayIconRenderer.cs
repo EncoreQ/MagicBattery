@@ -45,7 +45,14 @@ public static class TrayIconRenderer
             double radius = Size * 0.22;
             dc.DrawRoundedRectangle(bg, null, new Rect(0, 0, Size, Size), radius, radius);
 
-            DrawCenteredText(dc, model.Text);
+            if (model.Kind == TrayIconKind.Bars)
+            {
+                DrawBars(dc, model.Bars);
+            }
+            else
+            {
+                DrawCenteredText(dc, model.Text);
+            }
 
             if (model.ShowBolt)
             {
@@ -81,6 +88,32 @@ public static class TrayIconRenderer
         double x = (Size - formatted.Width) / 2;
         double y = (Size - formatted.Height) / 2;
         dc.DrawText(formatted, new Point(x, y));
+    }
+
+    // 横置电池:白描边外框 + 右侧正极 + 4 格,点亮前 bars 格(粗档设备如手柄)
+    private static void DrawBars(DrawingContext dc, int bars)
+    {
+        SolidColorBrush white = Brushes.White;
+        var pen = new Pen(white, Size * 0.055);
+
+        double bodyW = Size * 0.62, bodyH = Size * 0.40;
+        double x = (Size - bodyW - Size * 0.08) / 2;
+        double y = (Size - bodyH) / 2;
+        dc.DrawRectangle(null, pen, new Rect(x, y, bodyW, bodyH));
+
+        double tipW = Size * 0.06, tipH = bodyH * 0.45;
+        dc.DrawRectangle(white, null, new Rect(x + bodyW + Size * 0.02, y + (bodyH - tipH) / 2, tipW, tipH));
+
+        const int cells = 4;
+        double pad = Size * 0.06;
+        double innerX = x + pad, innerY = y + pad;
+        double innerW = bodyW - 2 * pad, innerH = bodyH - 2 * pad;
+        double gap = Size * 0.03;
+        double cellW = (innerW - gap * (cells - 1)) / cells;
+        for (int i = 0; i < bars && i < cells; i++)
+        {
+            dc.DrawRectangle(white, null, new Rect(innerX + i * (cellW + gap), innerY, cellW, innerH));
+        }
     }
 
     // 右下角画一个小闪电(金填充 + 白描边),表示充电中
