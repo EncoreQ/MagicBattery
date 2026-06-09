@@ -28,6 +28,7 @@ public partial class App : Application
     private Localizer _localizer = Localizer.Chinese;
     private LowBatteryAlerter? _alerter;
     private INotifier? _notifier;
+    private DebugLogger _log = DebugLogger.Disabled;
 
     private ContextMenu? _menu;
     private Separator? _deviceSeparator;
@@ -40,6 +41,12 @@ public partial class App : Application
     {
         base.OnStartup(e);
 
+        // 调试日志(opt-in)与全局异常兜底最先就位,后续任何环节出问题都有痕迹
+        bool logEnabled = e.Args.Contains("--log")
+            || Environment.GetEnvironmentVariable("MAGICBATTERY_LOG") == "1";
+        _log = logEnabled ? new DebugLogger(DebugLogger.DefaultPath()) : DebugLogger.Disabled;
+        SetupExceptionGuards();
+
         // 单实例:已在运行则退出,避免两个托盘抢同一个设备控制管道
         _singleInstance = new Mutex(initiallyOwned: true, @"Local\MagicBattery.SingleInstance", out bool createdNew);
         if (!createdNew)
@@ -51,6 +58,8 @@ public partial class App : Application
         _configService = new ConfigService();
         _config = _configService.Load();
         _localizer = Localizer.For(LanguageResolver.Resolve(_config.Language, CultureInfo.CurrentUICulture));
+        _log.Write($"启动 v{typeof(App).Assembly.GetName().Version} " +
+            $"poll={_config.PollIntervalMinutes}min alerts={_config.LowBatteryAlertsEnabled} lang={_config.Language}");
 
         _autostart = new AutostartService(new RegistryAutostartStore());
         _alerter = new LowBatteryAlerter(_config.AlertThresholds, () => _config.LowBatteryAlertsEnabled);
@@ -58,7 +67,8 @@ public partial class App : Application
         int minutes = Math.Max(1, _config.PollIntervalMinutes);
         _coordinator = new BatteryCoordinator(
             openAll: () => MagicBatteryReaderFactory.CreateAll(),
-            interval: TimeSpan.FromMinutes(minutes));
+            interval: TimeSpan.FromMinutes(minutes),
+            log: _log.Write);
         _coordinator.SnapshotChanged += OnSnapshot;
 
         _tray = new TaskbarIcon
@@ -76,6 +86,40 @@ public partial class App : Application
         _ = Task.Run(() => _coordinator.StartAsync());
     }
 
+    /// <summary>
+    /// 全局异常兜底:常驻托盘工具一次未捕获异常就会让进程无声消失,用户只看到「图标没了」。
+    /// 这里统一记日志并吞掉,保住进程;开了 --log 时事后可查。
+    /// </summary>
+    private void SetupExceptionGuards()
+    {
+        DispatcherUnhandledException += (_, args) =>
+        {
+            _log.Write("Dispatcher 未处理异常", args.Exception);
+            args.Handled = true;
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            _log.Write("Task 未观察异常", args.Exception);
+            args.SetObserved();
+        };
+        // 非 UI 线程抛出时进程必死(无法标记 Handled),至少留下最后一条日志
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+            _log.Write($"AppDomain 未处理异常(进程即将退出): {args.ExceptionObject}");
+    }
+
+    // 配置写盘失败(磁盘满、AppData 权限)只记日志,不让点击菜单崩掉进程
+    private void SaveConfig()
+    {
+        try
+        {
+            _configService?.Save(_config);
+        }
+        catch (Exception ex)
+        {
+            _log.Write("保存配置失败", ex);
+        }
+    }
+
     private ContextMenu BuildContextMenu()
     {
         _deviceSeparator = new Separator();
@@ -89,7 +133,7 @@ public partial class App : Application
         _alertsItem.Click += (_, _) =>
         {
             _config = _config with { LowBatteryAlertsEnabled = _alertsItem!.IsChecked };
-            _configService?.Save(_config);
+            SaveConfig();
         };
 
         var refreshItem = new MenuItem { Header = _localizer.MenuRefresh };
@@ -103,16 +147,26 @@ public partial class App : Application
             IsCheckable = true,
             IsChecked = _autostart?.IsEnabled ?? false,
         };
-        // IsCheckable 的 MenuItem 点击后框架已翻转 IsChecked,这里把注册表同步到新状态
+        // IsCheckable 的 MenuItem 点击后框架已翻转 IsChecked,这里把注册表同步到新状态;
+        // 注册表写失败时回滚勾选,保持菜单与实际状态一致
         _autostartItem.Click += (_, _) =>
         {
-            if (_autostartItem!.IsChecked)
+            bool wanted = _autostartItem!.IsChecked;
+            try
             {
-                _autostart?.Enable();
+                if (wanted)
+                {
+                    _autostart?.Enable();
+                }
+                else
+                {
+                    _autostart?.Disable();
+                }
             }
-            else
+            catch (Exception ex)
             {
-                _autostart?.Disable();
+                _log.Write("开机自启切换失败", ex);
+                _autostartItem.IsChecked = !wanted;
             }
         };
 
@@ -163,7 +217,7 @@ public partial class App : Application
     private void SetLanguage(LanguagePreference preference)
     {
         _config = _config with { Language = preference };
-        _configService?.Save(_config);
+        SaveConfig();
         _localizer = Localizer.For(LanguageResolver.Resolve(preference, CultureInfo.CurrentUICulture));
 
         if (_tray is not null)
@@ -263,6 +317,7 @@ public partial class App : Application
         _deviceDebounce.Tick += (_, _) =>
         {
             _deviceDebounce!.Stop();
+            _log.Write("设备变更(WM_DEVICECHANGE),触发刷新");
             _coordinator?.RequestRefresh();
         };
     }
@@ -283,6 +338,7 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _log.Write("退出");
         _deviceDebounce?.Stop();
         _deviceWatcher?.RemoveHook(DeviceChangeHook);
         _deviceWatcher?.Dispose();
