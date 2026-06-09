@@ -42,6 +42,7 @@ public static class BatteryReport0x90
         }
 
         bool charging = report[ChargeFlagOffset] != 0;
-        return new BatteryStatus(percentage, charging, connection, now);
+        return new BatteryStatus(
+            BatteryLevels.FromPercentage(percentage), percentage, charging, connection, now);
     }
 }

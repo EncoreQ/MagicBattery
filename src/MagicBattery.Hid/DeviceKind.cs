@@ -14,4 +14,7 @@ public enum DeviceKind
 
     /// <summary>Magic Mouse 2(暂未纳入电量读取,保留分类)。</summary>
     Mouse,
+
+    /// <summary>游戏手柄(Nintendo Switch Pro)。</summary>
+    Gamepad,
 }

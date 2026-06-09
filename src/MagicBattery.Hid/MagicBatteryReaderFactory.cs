@@ -20,10 +20,22 @@ public static class MagicBatteryReaderFactory
     }
 
     /// <summary>
-    /// 创建**所有**在线 Magic 电量设备的读取器,每台一个。无设备返回空列表。
+    /// 创建**所有**在线受支持设备的读取器,每台一个 —— Magic 设备 + Switch Pro 手柄。无设备返回空列表。
     /// </summary>
-    public static IReadOnlyList<IBatteryReader> CreateAll() =>
-        MagicHidDeviceEnumerator.OpenAll()
-            .Select(source => (IBatteryReader)new MagicBatteryReader(source))
-            .ToArray();
+    public static IReadOnlyList<IBatteryReader> CreateAll()
+    {
+        var readers = new List<IBatteryReader>();
+
+        foreach (IHidInputReportSource source in MagicHidDeviceEnumerator.OpenAll())
+        {
+            readers.Add(new MagicBatteryReader(source));
+        }
+
+        foreach (ISwitchReportSource source in SwitchProEnumerator.OpenAll())
+        {
+            readers.Add(new SwitchProBatteryReader(source));
+        }
+
+        return readers;
+    }
 }
