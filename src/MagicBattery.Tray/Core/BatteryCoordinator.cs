@@ -15,6 +15,7 @@ public sealed class BatteryCoordinator : IDisposable
     private readonly Func<IReadOnlyList<IBatteryReader>> _openAll;
     private readonly Func<DateTimeOffset> _clock;
     private readonly TimeSpan _interval;
+    private readonly Action<string> _log;
     private readonly SemaphoreSlim _gate = new(1, 1); // 单飞:定时器与手动刷新不重叠抢设备控制管道
     private readonly Dictionary<string, DeviceBattery> _devices = new();
 
@@ -24,11 +25,13 @@ public sealed class BatteryCoordinator : IDisposable
     public BatteryCoordinator(
         Func<IReadOnlyList<IBatteryReader>> openAll,
         TimeSpan interval,
-        Func<DateTimeOffset>? clock = null)
+        Func<DateTimeOffset>? clock = null,
+        Action<string>? log = null)
     {
         _openAll = openAll ?? throw new ArgumentNullException(nameof(openAll));
         _interval = interval;
         _clock = clock ?? (() => DateTimeOffset.Now);
+        _log = log ?? (_ => { });
     }
 
     /// <summary>最近一轮的设备快照(按类别排序)。</summary>
@@ -119,7 +122,7 @@ public sealed class BatteryCoordinator : IDisposable
         };
     }
 
-    private static async Task<BatteryReadResult> TryReadAsync(IBatteryReader reader, CancellationToken ct)
+    private async Task<BatteryReadResult> TryReadAsync(IBatteryReader reader, CancellationToken ct)
     {
         try
         {
@@ -129,8 +132,9 @@ public sealed class BatteryCoordinator : IDisposable
         {
             throw;
         }
-        catch
+        catch (Exception ex)
         {
+            _log($"读取失败 {reader.Kind}({reader.DeviceKey}): {ex.GetType().Name}: {ex.Message}");
             return BatteryReadResult.Unavailable;
         }
     }
@@ -138,6 +142,11 @@ public sealed class BatteryCoordinator : IDisposable
     private void Publish()
     {
         Devices = _devices.Values.OrderBy(d => d.Kind).ToArray();
+        _log(Devices.Count == 0
+            ? "轮询完成: 无设备"
+            : "轮询完成: " + string.Join("; ", Devices.Select(d =>
+                $"{d.Kind}={(d.Percentage is int p ? p + "%" : d.Level.ToString())}" +
+                $"{(d.IsCharging ? "⚡" : "")}({d.Connection},{d.Availability})")));
         SnapshotChanged?.Invoke(Devices);
     }
 
@@ -167,9 +176,10 @@ public sealed class BatteryCoordinator : IDisposable
         {
             // 停止中,忽略
         }
-        catch
+        catch (Exception ex)
         {
             // 单次轮询异常不能让循环停摆
+            _log($"轮询异常: {ex}");
         }
     }
 

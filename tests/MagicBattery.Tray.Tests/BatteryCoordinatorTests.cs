@@ -165,4 +165,18 @@ public class BatteryCoordinatorTests
 
         coord.Devices.Should().ContainSingle().Which.Percentage.Should().Be(77);
     }
+
+    [Fact]
+    public async Task Read_failure_is_logged_with_device_key()
+    {
+        var lines = new List<string>();
+        var bad = Reader(DeviceKind.Keyboard, "kb", DeviceConnection.Bluetooth,
+            new IOException("设备未就绪"));
+        using var coord = new BatteryCoordinator(
+            () => new IBatteryReader[] { bad }, TimeSpan.FromMinutes(15), () => _now, lines.Add);
+
+        await coord.PollOnceAsync(CancellationToken.None);
+
+        lines.Should().Contain(l => l.Contains("读取失败") && l.Contains("kb") && l.Contains("设备未就绪"));
+    }
 }
