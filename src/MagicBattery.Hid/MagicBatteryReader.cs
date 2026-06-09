@@ -31,6 +31,10 @@ public sealed class MagicBatteryReader : IBatteryReader
 
     public DeviceConnection Connection => _source.Connection;
 
+    public DeviceKind Kind => _source.Kind;
+
+    public string DeviceKey => _source.DeviceKey;
+
     public IObservable<BatteryStatus> Changes => _changes;
 
     public Task<BatteryReadResult> ReadAsync(CancellationToken ct)

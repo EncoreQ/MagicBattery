@@ -10,6 +10,12 @@ public interface IHidInputReportSource : IDisposable
     /// <summary>此设备的连接类型(由 VID 判定)。</summary>
     DeviceConnection Connection { get; }
 
+    /// <summary>设备类别(由 PID 判定)。</summary>
+    DeviceKind Kind { get; }
+
+    /// <summary>设备稳定标识(优先序列号、回退设备路径),用于多设备区分与跨连接的状态/告警连续。</summary>
+    string DeviceKey { get; }
+
     /// <summary>
     /// 发起一次 GET_REPORT(Input)(控制管道),取当前 Input report。
     /// </summary>

@@ -362,7 +362,7 @@ Phase 1 必须实测并**录成 `tests/fixtures/` 数据**，确认前不得在�
 | U4 | Windows/HidSharp 解析是否可靠 | ✅ 已确认 | 厂商页(`06 00 FF`),Windows 不自动识别为电量;**改用 P/Invoke `HidD_GetInputReport` 按字节解析**(`HidD_GetFeature` 不通) |
 | U5 | 睡眠/唤醒/满电怪值 | ⏳ 部分 | 已知低电(2%)正常;睡眠/满电的怪值仍需在那些状态下补录 |
 | U6 | 设备识别方式 | ✅ 已确认 | **按 VID/PID**(0x05AC=USB、0x004C=蓝牙 + PID 0x0265);**不能靠名字**(实测本地化为「RZha的妙控板」) |
-| U7 | MK(键盘)电量字段布局 | ✅ 旁证 | 实测 MK(004C/029C)同样暴露 `Input id 0x90 len 3`,**与 MT2 同构**;Phase 3 可复用 report 0x90 模型 |
+| U7 | MK(键盘)电量字段布局 | ✅ 已确认 | Phase 3 真机校准:MK(004C/029C)读到 `90 00 42` = **66%**,与 MT2 完全同构(同 report 0x90、`byte[2]` 直读);已纳入支持并存 fixture `mk_bt_66pct.hex` |
 
 > 录制的真机报文见 `tests/fixtures/report-0x90/`(`90 00 02` 蓝牙 2% / `90 03 03` USB 充电 3%)。
 > 充电状态字段(`byte[1]`)的逐位精确含义、以及睡眠/满电怪值,留待后续在对应状态补录。

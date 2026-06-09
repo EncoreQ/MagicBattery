@@ -65,6 +65,20 @@ public class BatteryReport0x90ParserTests
     }
 
     [Fact]
+    public void Parse_real_keyboard_fixture_66pct()
+    {
+        // 真机录制:Magic Keyboard 2021(蓝牙)66% → 90 00 42
+        // 证实键盘与 MT2 同构:同 report 0x90、byte[2] 直读
+        byte[] report = FixtureLoader.LoadBytes("report-0x90", "mk_bt_66pct");
+
+        BatteryStatus? status = BatteryReport0x90.Parse(report, DeviceConnection.Bluetooth, Now);
+
+        status!.Percentage.Should().Be(66);
+        status.IsCharging.Should().BeFalse();
+        status.Connection.Should().Be(DeviceConnection.Bluetooth);
+    }
+
+    [Fact]
     public void Parse_out_of_range_battery_returns_null()
     {
         // 90 00 C8:byte[2]=200 > 100,怪值

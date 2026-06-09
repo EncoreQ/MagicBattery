@@ -17,11 +17,20 @@ public sealed class Win32HidInputReportSource : IHidInputReportSource
 
     public DeviceConnection Connection { get; }
 
+    public DeviceKind Kind { get; }
+
+    public string DeviceKey { get; }
+
     /// <param name="devicePath">HidSharp 给出的设备路径(<c>\\?\hid#...</c>)。</param>
     /// <param name="connection">由 VID 判定的连接类型。</param>
-    public Win32HidInputReportSource(string devicePath, DeviceConnection connection)
+    /// <param name="kind">由 PID 判定的设备类别。</param>
+    /// <param name="deviceKey">设备稳定标识(序列号或路径)。</param>
+    public Win32HidInputReportSource(string devicePath, DeviceConnection connection,
+        DeviceKind kind, string deviceKey)
     {
         Connection = connection;
+        Kind = kind;
+        DeviceKey = deviceKey;
         _handle = CreateFileW(devicePath, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_RW,
             IntPtr.Zero, OPEN_EXISTING, 0, IntPtr.Zero);
         if (_handle.IsInvalid)

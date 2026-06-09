@@ -11,6 +11,8 @@ internal sealed class FakeHidInputReportSource : IHidInputReportSource
     private readonly Exception? _throw;
 
     public DeviceConnection Connection { get; }
+    public DeviceKind Kind { get; } = DeviceKind.Trackpad;
+    public string DeviceKey { get; } = "fake-device";
     public int CallCount { get; private set; }
     public bool Disposed { get; private set; }
 

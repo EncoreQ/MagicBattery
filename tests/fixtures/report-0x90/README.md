@@ -12,6 +12,7 @@ HID Input report `0x90`(3 字节),Magic Trackpad 2 实测。这是 **USB 与蓝�
 | `mt2_usb_charging_3pct.hex` | `90 03 03` | USB(VID 0x05AC)、充电、byte[1]=0x03(充电中)、byte[2]=3 | 真机:同一台,USB 插线充电,2026-06-08,ground truth 3% |
 | `mt2_bt_full_charging_100pct.hex` | `90 03 64` | **蓝牙(VID 0x004C)、充电中、byte[1]=0x03、byte[2]=0x64=100** —— 充电时数据仍走蓝牙,证明 byte[1] 充电标志独立于 VID/传输 | 真机:同一台,充满后采集,2026-06-08 |
 | `mt2_bt_full_unplugged_100pct.hex` | `90 00 64` | **蓝牙、拔线满电、byte[1]=0x00、byte[2]=100** —— 与上一行仅差 byte[1],拔线后从 0x03 翻 0x00,干净坐实 byte[1] 即充电标志 | 真机:同一台,从满电拔线后立即采集,2026-06-08 |
+| `mk_bt_66pct.hex` | `90 00 42` | **Magic Keyboard(PID 0x029C,蓝牙)、未充电、byte[2]=0x42=66** —— 证实键盘与 MT2 同构(同 report 0x90、同布局),Phase 3 多设备校准 | 真机:Magic Keyboard 2021(序列号 b0be83e3da46),2026-06-09 |
 | `mt2_garbage_oob.hex` | `90 00 C8` | byte[2]=200 > 100,越界怪值,应判为 Unavailable | SYNTHETIC(构造的边界用例) |
 
 ## 待补录(后续在对应状态下采集)
