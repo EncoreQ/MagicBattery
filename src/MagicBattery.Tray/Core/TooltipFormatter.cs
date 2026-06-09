@@ -3,23 +3,40 @@ using MagicBattery.Hid;
 namespace MagicBattery.Tray.Core;
 
 /// <summary>
-/// 把 <see cref="BatteryViewState"/> 格式化成托盘 tooltip 文案。
-/// CLAUDE.md:百分比 + 连接方式 + 最后更新时间。纯函数,可单测。
+/// 设备电量的文案格式化(纯函数,可单测)。
+/// <see cref="Device"/> 给单设备一行(菜单逐设备项);<see cref="Tooltip"/> 给托盘 hover 多行汇总。
 /// </summary>
 public static class TooltipFormatter
 {
-    public static string Format(BatteryViewState state)
+    /// <summary>单设备一行:<c>键盘 87% · 充电中 · 蓝牙</c>;离线则 <c>键盘 · 未连接</c>。</summary>
+    public static string Device(DeviceBattery d)
     {
-        if (state.Availability == BatteryAvailability.Disconnected || state.Percentage is null)
+        string name = DeviceKindNames.Of(d.Kind);
+        if (d.Availability == BatteryAvailability.Disconnected || d.Percentage is null)
         {
-            return state.LastUpdate == default
-                ? "Magic Trackpad 2 · 未连接"
-                : $"未连接 · 最后 {state.LastUpdate:HH:mm}";
+            return $"{name} · 未连接";
         }
 
-        string conn = ConnectionText(state.Connection);
-        string charge = state.IsCharging ? "充电中" : "未充电";
-        return $"{state.Percentage}% · {charge} · {conn} · {state.LastUpdate:HH:mm}";
+        string conn = ConnectionText(d.Connection);
+        string charge = d.IsCharging ? "充电中" : "未充电";
+        return $"{name} {d.Percentage}% · {charge} · {conn}";
+    }
+
+    /// <summary>托盘 hover:每在线设备一行 + 末行更新时间;无在线设备时占位。</summary>
+    public static string Tooltip(IReadOnlyList<DeviceBattery> devices)
+    {
+        List<DeviceBattery> live = devices
+            .Where(d => d.Availability == BatteryAvailability.Live && d.Percentage is not null)
+            .ToList();
+
+        if (live.Count == 0)
+        {
+            return "Magic 设备 · 未连接";
+        }
+
+        string lines = string.Join("\n", live.Select(Device));
+        DateTimeOffset last = live.Max(d => d.LastUpdate);
+        return $"{lines}\n更新 {last:HH:mm}";
     }
 
     private static string ConnectionText(DeviceConnection connection) => connection switch

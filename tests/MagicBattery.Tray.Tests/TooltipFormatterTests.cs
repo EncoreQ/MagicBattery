@@ -9,33 +9,47 @@ public class TooltipFormatterTests
     private static readonly DateTimeOffset At1432 =
         new(2026, 6, 8, 14, 32, 0, TimeSpan.Zero);
 
-    [Fact]
-    public void Live_bluetooth_charging()
-    {
-        var state = new BatteryViewState(8, true, DeviceConnection.Bluetooth, At1432, BatteryAvailability.Live);
+    private static DeviceBattery Dev(DeviceKind kind, int? pct, bool charging,
+        DeviceConnection conn, BatteryAvailability avail = BatteryAvailability.Live) =>
+        new(kind.ToString(), kind, pct, charging, conn, At1432, avail);
 
-        TooltipFormatter.Format(state).Should().Be("8% · 充电中 · 蓝牙 · 14:32");
+    [Fact]
+    public void Device_keyboard_charging()
+    {
+        TooltipFormatter.Device(Dev(DeviceKind.Keyboard, 8, true, DeviceConnection.Bluetooth))
+            .Should().Be("键盘 8% · 充电中 · 蓝牙");
     }
 
     [Fact]
-    public void Live_usb_not_charging()
+    public void Device_trackpad_usb_not_charging()
     {
-        var state = new BatteryViewState(87, false, DeviceConnection.Usb, At1432, BatteryAvailability.Live);
-
-        TooltipFormatter.Format(state).Should().Be("87% · 未充电 · USB · 14:32");
+        TooltipFormatter.Device(Dev(DeviceKind.Trackpad, 87, false, DeviceConnection.Usb))
+            .Should().Be("触控板 87% · 未充电 · USB");
     }
 
     [Fact]
-    public void Disconnected_with_history_shows_last_time()
+    public void Device_disconnected_shows_name_and_unconnected()
     {
-        var state = new BatteryViewState(50, false, DeviceConnection.Bluetooth, At1432, BatteryAvailability.Disconnected);
-
-        TooltipFormatter.Format(state).Should().Be("未连接 · 最后 14:32");
+        TooltipFormatter.Device(Dev(DeviceKind.Mouse, null, false, DeviceConnection.Disconnected,
+            BatteryAvailability.Disconnected)).Should().Be("鼠标 · 未连接");
     }
 
     [Fact]
-    public void Disconnected_without_history_shows_placeholder()
+    public void Tooltip_lists_live_devices_with_update_time()
     {
-        TooltipFormatter.Format(BatteryViewState.Initial).Should().Be("Magic Trackpad 2 · 未连接");
+        var devices = new[]
+        {
+            Dev(DeviceKind.Trackpad, 87, false, DeviceConnection.Bluetooth),
+            Dev(DeviceKind.Keyboard, 8, true, DeviceConnection.Bluetooth),
+        };
+
+        TooltipFormatter.Tooltip(devices).Should().Be(
+            "触控板 87% · 未充电 · 蓝牙\n键盘 8% · 充电中 · 蓝牙\n更新 14:32");
+    }
+
+    [Fact]
+    public void Tooltip_empty_shows_placeholder()
+    {
+        TooltipFormatter.Tooltip(Array.Empty<DeviceBattery>()).Should().Be("Magic 设备 · 未连接");
     }
 }

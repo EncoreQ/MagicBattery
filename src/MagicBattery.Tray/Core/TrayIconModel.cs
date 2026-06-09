@@ -6,7 +6,7 @@ namespace MagicBattery.Tray.Core;
 /// </summary>
 public sealed record TrayIconModel(string Text, RgbColor Background, bool ShowBolt, bool Dimmed)
 {
-    public static TrayIconModel FromState(BatteryViewState state)
+    public static TrayIconModel FromState(DeviceBattery state)
     {
         if (state.Availability == BatteryAvailability.Disconnected || state.Percentage is null)
         {

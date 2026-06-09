@@ -4,13 +4,15 @@ namespace MagicBattery.Tray.Tests.Fakes;
 
 /// <summary>
 /// 手写的 <see cref="IBatteryReader"/> 测试替身。按脚本逐次返回读取结果(或抛异常);
-/// 脚本用尽后重复最后一项。<see cref="BatteryMonitor"/> 不订阅 Changes,故给个空实现。
+/// 脚本用尽后重复最后一项。多设备测试用 <see cref="Kind"/>/<see cref="DeviceKey"/> 区分设备。
 /// </summary>
 internal sealed class FakeBatteryReader : IBatteryReader
 {
     private readonly Queue<object> _script; // 每项为 BatteryReadResult 或 Exception
 
     public DeviceConnection Connection { get; }
+    public DeviceKind Kind { get; init; } = DeviceKind.Trackpad;
+    public string DeviceKey { get; init; } = "fake";
     public int ReadCount { get; private set; }
     public bool Disposed { get; private set; }
 
