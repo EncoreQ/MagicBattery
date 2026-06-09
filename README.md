@@ -1,5 +1,7 @@
 # MagicBattery
 
+[English](README.en.md) | 简体中文
+
 Windows 上的无线设备电量托盘:为 **Apple Magic Trackpad 2 / Magic Keyboard**（配 [mac-precision-touchpad](https://github.com/imbushuo/mac-precision-touchpad) 驱动）与 **Nintendo Switch Pro 手柄**显示电量。系统托盘常驻，多设备同时显示，悬停看电量、低电量告警。（Magic Mouse 2 待真机校准后加入。）
 
 > 纯用户态实现:**不改驱动、不需要管理员权限、不禁用驱动签名验证、纯只读不干扰设备**。绿色版优先。
