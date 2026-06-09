@@ -38,7 +38,7 @@ public static class TooltipFormatter
 
         string lines = string.Join("\n", live.Select(Device));
         DateTimeOffset last = live.Max(d => d.LastUpdate);
-        return $"{lines}\n更新 {last:HH:mm}";
+        return $"{lines}\n更新于 {last:HH:mm}";
     }
 
     private static string ConnectionText(DeviceConnection connection) => connection switch

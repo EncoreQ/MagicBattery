@@ -58,7 +58,7 @@ public class TooltipFormatterTests
         };
 
         TooltipFormatter.Tooltip(devices).Should().Be(
-            "触控板 87% · 未充电 · 蓝牙\n手柄 高 · 未充电 · 蓝牙\n更新 14:32");
+            "触控板 87% · 未充电 · 蓝牙\n手柄 高 · 未充电 · 蓝牙\n更新于 14:32");
     }
 
     [Fact]
