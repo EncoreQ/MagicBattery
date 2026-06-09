@@ -1,8 +1,13 @@
 # MagicBattery
 
-为 Windows 上使用 [mac-precision-touchpad](https://github.com/imbushuo/mac-precision-touchpad) 开源驱动的 **Apple Magic Trackpad 2** 提供电量显示——弥补该驱动缺失的电量上报。系统托盘常驻，悬停看电量，未来扩展到 Magic Mouse 2 / Magic Keyboard。
+为 Windows 上使用 [mac-precision-touchpad](https://github.com/imbushuo/mac-precision-touchpad) 开源驱动的 **Apple Magic Trackpad 2 与 Magic Keyboard** 提供电量显示——弥补该驱动缺失的电量上报。系统托盘常驻，多设备同时显示，悬停看电量、低电量告警。（Magic Mouse 2 待真机校准后加入。）
 
 > 纯用户态实现：**不改驱动、不需要管理员权限、不禁用驱动签名验证**。绿色版优先。
+
+## 下载
+
+预编译的**绿色单文件**（自包含 .NET 8 运行时，双击即用，无需安装）见 [**Releases**](https://github.com/EncoreQ/MagicBattery/releases/latest)。
+要求 Windows 10 21H2+ / Windows 11，且已安装 mac-precision-touchpad 驱动。
 
 ## 状态
 
@@ -63,10 +68,10 @@ src/
   MagicBattery.Tray/    WPF 托盘程序
 tests/
   MagicBattery.Hid.Tests/    读取层单测(录制报文做 fixture)
-  MagicBattery.Tray.Tests/   托盘核心逻辑单测(轮询编排/档位/文案/自启)
+  MagicBattery.Tray.Tests/   托盘核心逻辑单测(轮询编排/档位/文案/告警/配置/自启)
   fixtures/                  真机录制的 report 字节
 docs/
-  protocol-spec.md      Phase 0 电量协议规约
+  protocol-spec.md      电量协议规约(含真机校准更正)
 ```
 
 读取层与 UI 完全解耦：所有 HID 调用过 mock 友好接口，解析与编排逻辑均有单测，**不依赖"接上设备试一下"**。
