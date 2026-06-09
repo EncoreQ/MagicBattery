@@ -8,6 +8,8 @@
     <UseWPF>true</UseWPF>
     <LangVersion>latest</LangVersion>
     <AssemblyName>MagicBattery</AssemblyName>
+    <!-- exe 应用程序图标(Explorer / 任务栏 / 开始菜单显示),与动态托盘图标无关 -->
+    <ApplicationIcon>appicon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
