@@ -47,6 +47,22 @@ public class DebugLoggerTests : IDisposable
     }
 
     [Fact]
+    public void New_file_starts_with_utf8_bom()
+    {
+        var log = new DebugLogger(_path, FixedClock);
+
+        log.Write("中文");
+        log.Write("第二条"); // 追加不重复写 BOM
+
+        byte[] bytes = File.ReadAllBytes(_path);
+        bytes.Take(3).Should().Equal(0xEF, 0xBB, 0xBF);
+        // 第二行若混入 BOM 会以 U+FEFF 字符出现
+        string[] lines = File.ReadAllLines(_path);
+        lines.Should().HaveCount(2);
+        lines[1].Should().NotContain(((char)0xFEFF).ToString()).And.EndWith("第二条");
+    }
+
+    [Fact]
     public void Exception_overload_includes_type_and_message()
     {
         var log = new DebugLogger(_path, FixedClock);

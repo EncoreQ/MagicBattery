@@ -13,6 +13,10 @@ public sealed class DebugLogger
 {
     private const long MaxBytes = 1024 * 1024; // 启用时旧文件超 1MB 直接清掉,避免无限膨胀
 
+    // 带 BOM 的 UTF-8:Windows PowerShell 5.1 的 Get-Content / 旧编辑器默认按 ANSI 读
+    // 无 BOM 文件,中文会乱码。AppendAllText 只在新建文件时写入 BOM,追加不会重复。
+    private static readonly System.Text.UTF8Encoding Utf8Bom = new(encoderShouldEmitUTF8Identifier: true);
+
     private readonly object _gate = new();
     private readonly string? _path; // null = 禁用
     private readonly Func<DateTimeOffset> _clock;
@@ -71,7 +75,7 @@ public sealed class DebugLogger
             lock (_gate)
             {
                 File.AppendAllText(_path,
-                    $"{_clock():yyyy-MM-dd HH:mm:ss.fff} {message}{Environment.NewLine}");
+                    $"{_clock():yyyy-MM-dd HH:mm:ss.fff} {message}{Environment.NewLine}", Utf8Bom);
             }
         }
         catch
